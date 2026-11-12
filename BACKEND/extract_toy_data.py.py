@@ -30,8 +30,8 @@ else:
     ds_tmax = xr.open_mfdataset(tmax_files)
     ds_tmin = xr.open_mfdataset(tmin_files)
 
-    sub_tmax = ds_tmax.sel(latitude=TARGET_LAT, longitude=TARGET_LON, method="nearest")
-    sub_tmin = ds_tmin.sel(latitude=TARGET_LAT, longitude=TARGET_LON, method="nearest")
+    sub_tmax = ds_tmax.sel(lat=TARGET_LAT, lon=TARGET_LON, method="nearest")
+    sub_tmin = ds_tmin.sel(lat=TARGET_LAT, lon=TARGET_LON, method="nearest")
 
     df_tmax = sub_tmax.to_dataframe().reset_index()
     df_tmin = sub_tmin.to_dataframe().reset_index()

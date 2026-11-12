@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RAWAT GAMBUT - Modern Overlay Dashboard</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Leaflet CSS & JS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <!-- Leaflet Heatwave / Smooth Contour -->
+    <script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        html, body {
+            height: 100vh;
+            width: 100vw;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background-color: #030712;
+        }
+        #map {
+            position: absolute;
+            top: 0; bottom: 0; left: 0; right: 0;
+            height: 100vh !important;
+            width: 100vw !important;
+            z-index: 1;
+        }
+        .custom-scrollbar::-webkit-scrollbar { width: 5px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: rgba(15, 23, 42, 0.6); }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #10b981; border-radius: 4px; }
+    </style>
+</head>
+<body class="font-sans h-screen w-screen relative overflow-hidden">
+
+    <!-- 1. FULLSCREEN MAP BACKGROUND -->
+    <div id="map"></div>
+
+    <!-- 2. TOP FLOATING HEADER -->
+    <header class="absolute top-4 left-4 right-4 z-20 flex flex-wrap justify-between items-center bg-gray-900/90 backdrop-blur-md px-5 py-3 rounded-2xl border border-gray-700/80 shadow-2xl">
+        <div class="flex items-center gap-3">
+            <div class="p-2 bg-emerald-500/20 rounded-xl border border-emerald-500/40">
+                <span class="text-xl">🌿</span>
+            </div>
+            <div>
+                <h1 class="text-xl font-extrabold text-emerald-400 tracking-wide">RAWAT GAMBUT</h1>
+                <p class="text-xs text-gray-300">Sistem Monitoring TMAT Harian 2015 & Transparansi Wakaf</p>
+            </div>
+        </div>
+
+        <!-- Filter & Toggle Layer Mode -->
+        <div class="flex flex-wrap items-center gap-2">
+            <div class="flex items-center gap-1.5 bg-gray-800/90 px-3 py-1.5 rounded-xl border border-gray-600">
+                <span class="text-xs text-gray-300 font-medium hidden sm:inline">Periode:</span>
+                <span class="bg-emerald-950 text-emerald-400 text-xs font-bold border border-emerald-600 rounded px-2 py-0.5">2015</span>
+
+                <select id="monthSelect" onchange="updateDayOptions(); onPeriodChange();" class="bg-gray-900 text-xs text-amber-400 font-semibold border border-gray-700 rounded px-2 py-1 focus:outline-none focus:border-emerald-500">
+                    <option value="01">01 - Januari</option>
+                    <option value="02">02 - Februari</option>
+                    <option value="03" selected>03 - Maret</option>
+                    <option value="04">04 - April</option>
+                    <option value="05">05 - Mei</option>
+                    <option value="06">06 - Juni</option>
+                    <option value="07">07 - Juli</option>
+                    <option value="08">08 - Agustus</option>
+                    <option value="09">09 - September (Kritis)</option>
+                    <option value="10">10 - Oktober</option>
+                    <option value="11">11 - November</option>
+                    <option value="12">12 - Desember</option>
+                </select>
+
+                <select id="daySelect" onchange="onPeriodChange()" class="bg-gray-900 text-xs text-emerald-400 font-semibold border border-gray-700 rounded px-2 py-1 focus:outline-none focus:border-emerald-500 min-w-[75px]">
+                </select>
+            </div>
+
+            <div class="flex items-center gap-1 bg-gray-800/90 px-2 py-1.5 rounded-xl border border-gray-600">
+                <button id="btnViewGrid" onclick="switchLayerMode('grid')" class="px-2.5 py-1 text-[11px] font-bold rounded-lg bg-emerald-600 text-white shadow">Grid</button>
+                <button id="btnViewContour" onclick="switchLayerMode('contour')" class="px-2.5 py-1 text-[11px] font-bold rounded-lg bg-gray-900 text-gray-400 hover:text-white border border-gray-700">Kontur</button>
+            </div>
+        </div>
+
+        <div class="hidden md:flex items-center space-x-2">
+            <span class="w-2.5 h-2.5 bg-emerald-500 rounded-full animate-ping"></span>
+            <span class="text-xs font-semibold text-emerald-300 bg-emerald-950/80 px-2.5 py-1 rounded-lg border border-emerald-700/60">
+                API Connected
+            </span>
+        </div>
+    </header>
+
+    <!-- 3. LEFT FLOATING SIDEBAR -->
+    <aside class="absolute top-24 left-4 bottom-6 z-10 w-96 max-w-[calc(100vw-2rem)] flex flex-col gap-4 overflow-y-auto custom-scrollbar pr-1 pointer-events-auto">
+        <div class="bg-gray-900/90 backdrop-blur-md p-4 rounded-2xl border border-gray-700/80 shadow-2xl space-y-3">
+            <div class="flex items-center justify-between border-b border-gray-800 pb-2">
+                <h2 class="text-sm font-bold text-emerald-300 flex items-center gap-2">
+                    <span>🛡️</span> Status Ringkasan Gambut
+                </h2>
+                <span class="text-[10px] text-gray-400 bg-gray-800 px-2 py-0.5 rounded-full">Pulang Pisau</span>
+            </div>
+
+            <div class="space-y-2 text-xs">
+                <div class="flex justify-between items-center">
+                    <span class="text-gray-400">Lokasi Grid Target:</span>
+                    <span id="loc-name" class="font-bold text-white bg-gray-800/80 px-2 py-0.5 rounded">Pulang Pisau</span>
+                </div>
+                <div class="flex justify-between items-center">
+                    <span class="text-gray-400">Rata-rata TMAT:</span>
+                    <span id="avg-tmat" class="font-bold text-emerald-400 text-sm">-</span>
+                </div>
+                <div class="flex justify-between items-center">
+                    <span class="text-gray-400">Hari Rawan Kerentanan:</span>
+                    <span id="vulnerable-days" class="font-bold text-rose-400">-</span>
+                </div>
+                <div class="border-t border-gray-800 pt-2 space-y-1.5">
+                    <div class="flex justify-between items-center">
+                        <span class="text-gray-400">Status Bahaya (PFAI):</span>
+                        <span id="pfai-status" class="font-bold text-emerald-400">-</span>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span class="text-gray-400">Indeks NDBAI:</span>
+                        <span id="ndbai-val" class="text-gray-200">0.62 (Sekat Pekat)</span>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span class="text-gray-400">Kepadatan Penduduk:</span>
+                        <span id="pop-density" class="text-gray-200">210 jiwa/km²</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-gray-900/90 backdrop-blur-md p-4 rounded-2xl border border-gray-700/80 shadow-2xl space-y-3">
+            <h2 class="text-sm font-bold text-emerald-300 flex items-center gap-2 border-b border-gray-800 pb-2">
+                <span>💚</span> Kalkulator Alokasi Dana Wakaf
+            </h2>
+            <p class="text-[11px] text-gray-400">Estimasi alokasi sekat kanal & patroli berdasarkan luasan gambut.</p>
+            
+            <div class="space-y-3">
+                <div>
+                    <label class="text-xs text-gray-300 font-medium">Target Luas (Hektar):</label>
+                    <input type="range" id="areaSlider" min="10" max="500" value="100" class="w-full accent-emerald-500 mt-1" oninput="calculateWaqf()">
+                    <div class="flex justify-between text-[10px] text-gray-400 mt-0.5">
+                        <span>10 Ha</span>
+                        <span id="areaVal" class="text-emerald-400 font-bold">100 Ha</span>
+                        <span>500 Ha</span>
+                    </div>
+                </div>
+
+                <div class="bg-gray-950/80 p-3 rounded-xl border border-gray-800 space-y-2 text-xs">
+                    <div class="flex justify-between">
+                        <span class="text-gray-400">Sekat Kanal Dibutuhkan:</span>
+                        <span id="canalBlocks" class="font-bold text-white">5 Unit</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-400">Kebutuhan Patroli:</span>
+                        <span id="patrolUnits" class="font-bold text-white">2 Tim</span>
+                    </div>
+                    <hr class="border-gray-800">
+                    <div class="flex justify-between text-sm pt-0.5">
+                        <span class="font-semibold text-emerald-300">Estimasi Wakaf:</span>
+                        <span id="totalWaqf" class="font-extrabold text-emerald-400">Rp 75.000.000</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </aside>
+
+    <!-- 4. BOTTOM FLOATING CHART -->
+    <div class="absolute bottom-6 left-[410px] right-4 z-10 hidden md:block bg-gray-900/90 backdrop-blur-md p-4 rounded-2xl border border-gray-700/80 shadow-2xl pointer-events-auto">
+        <div class="flex justify-between items-center mb-2">
+            <h2 class="text-xs font-bold text-emerald-300 flex items-center gap-1.5">
+                <span>📈</span> Grafik Tren TMAT Harian (2015)
+            </h2>
+            <button onclick="onPeriodChange()" class="bg-emerald-600/80 hover:bg-emerald-500 text-white font-bold py-1 px-2.5 rounded-lg text-[10px] transition shadow">
+                Refresh Data
+            </button>
+        </div>
+        <div class="h-32 w-full relative">
+            <canvas id="tmatChart"></canvas>
+        </div>
+    </div>
+
+    <script src="js/summary.js"></script>
+    <script src="js/chart.js"></script>
+    <script src="js/map.js"></script>
+    <script src="js/waqf.js"></script>
+</body>
+</html>
